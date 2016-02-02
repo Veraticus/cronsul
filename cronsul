@@ -18,17 +18,23 @@ grab_lock_or_die() {
     local period="$3"
     local query="${CONSUL_ADDR}/v1/kv/cronsul/${task_id}"
 
+    # Parse the last run information and grab ModifyIndex.
     json="$(curl -sS -X GET "${query}")"
     if [[ "$json" != "" ]]; then
-        local last_run="$(grep -Po '"Value":.*?[^\\]",' <<< ${json} | awk -F\" '{print $4}' | base64 --decode)"
-        local modify_index="$(grep -Po '"ModifyIndex":[\0-9]*' <<< ${json} | awk -F\: '{print $2}')"
+        local last_run_hash="$(grep -Po '"Value":[^,]*' <<< ${json} | awk -F\: '{print $2}')"
+        if [[ "$last_run_hash" != "null" ]]; then
+            local last_run=$(awk -F\" '{print $2}' <<< ${last_run_hash} | base64 --decode)
+        fi
+
+        local modify_index="$(grep -Po '"ModifyIndex":[0-9]*' <<< ${json} | awk -F\: '{print $2}')"
     fi
 
-    # Check if this ran already some other machine.
+    # Check if this ran already on some other machine.
     if [[ "${last_run:-0}" -ge "$((current_run-period))" ]]; then
         exit 0
     fi
 
+    # Try to acquire a lock with Consul.
     ret="$(curl -sS -X PUT -d "${current_run}" "${query}?cas=${modify_index:-0}")"
     if [[ "$ret" != "true" ]]; then
         if [[ "$ret" != "false" ]]; then
@@ -47,7 +53,7 @@ shift
 case "$1" in
     --period) period="$2"; shift 2;;
     --period=*) period="${1##--period=}"; shift;;
-    *) period=60;
+    *) period=30;
 esac
 
 command=("$@")

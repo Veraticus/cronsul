@@ -38,10 +38,12 @@ The `cronsul` script itself takes one or two arguments, in addition to a command
 1. A task id. This is used to associate multiple `cronsul` runs from different
 boxes.
 2. Optionally, using `--period`, the length of the period (in seconds) during
-which you don't want your command to be run twice. This defaults to 60, which
+which you don't want your command to be run twice. This defaults to 30, which
 should generally be enough, but if your cron job might be started in different
 minutes on different boxes (e.g. due to different cron jobs or an overloaded
-box), you may increase this up to the frequency at which your job runs.
+box), you may increase this. Do not set `period` to be the frequency with which
+your cron job runs or else your job may not execute! `period` should be the
+maximum time it would take cron to start your job across all machines.
 
 ## Dependencies
 
