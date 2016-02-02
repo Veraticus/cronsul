@@ -14,9 +14,22 @@ usage() {
 
 grab_lock_or_die() {
     local task_id="$1"
-    local schedule_date="$2"
+    local current_run="$2"
     local period="$3"
-    ret="$(curl -sS -X PUT -d "${HOSTNAME}" "${CONSUL_ADDR}/v1/kv/cronsul/${task_id}/${period}/${schedule_date}?cas=0")"
+    local query="${CONSUL_ADDR}/v1/kv/cronsul/${task_id}/${period}"
+
+    json="$(curl -sS -X GET "${query}")"
+    if [[ "$json" != "" ]]; then
+        local last_run="$(grep -Po '"Value":.*?[^\\]",' <<< ${json} | awk -F\" '{print $4}' | base64 --decode)"
+        local modify_index="$(grep -Po '"ModifyIndex":[\0-9]*' <<< ${json} | awk -F\: '{print $2}')"
+    fi
+
+    # Check if this ran already some other machine.
+    if [[ "${last_run:-0}" -ge "$((current_run-$period))" ]]; then
+        exit 0
+    fi
+
+    ret="$(curl -sS -X PUT -d "${current_run}" "${query}?cas=${modify_index:-0}")"
     if [[ "$ret" != "true" ]]; then
         if [[ "$ret" != "false" ]]; then
              echo $ret
@@ -39,9 +52,8 @@ esac
 
 command=("$@")
 
-# This will be wrong if cron starts our job really late.
-schedule_date="$(( ($(date '+%s') / period) * period ))"
+current_run="$(date '+%s')"
 
-grab_lock_or_die "$task_id" "$schedule_date" "$period"
+grab_lock_or_die "$task_id" "$current_run" "$period"
 
 "${command[@]}"
