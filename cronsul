@@ -16,7 +16,7 @@ grab_lock_or_die() {
     local task_id="$1"
     local current_run="$2"
     local period="$3"
-    local query="${CONSUL_ADDR}/v1/kv/cronsul/${task_id}/${period}"
+    local query="${CONSUL_ADDR}/v1/kv/cronsul/${task_id}"
 
     json="$(curl -sS -X GET "${query}")"
     if [[ "$json" != "" ]]; then
@@ -25,7 +25,7 @@ grab_lock_or_die() {
     fi
 
     # Check if this ran already some other machine.
-    if [[ "${last_run:-0}" -ge "$((current_run-$period))" ]]; then
+    if [[ "${last_run:-0}" -ge "$((current_run-period))" ]]; then
         exit 0
     fi
 
